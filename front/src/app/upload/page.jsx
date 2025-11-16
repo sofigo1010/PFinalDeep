@@ -59,39 +59,53 @@ export default function UploadPage() {
 
       let historical = [];
 
-      // 2) Si es CSV de entrenamiento original: agrupar por "Order Date" y sumar "Sales"
-      if (meta.fields.includes("Order Date") && meta.fields.includes("Sales")) {
+      // ---- Detectar columnas de fecha y ventas como en el backend ----
+      const dateCandidates = ["fecha", "Order Date", "Paid at", "Created at", "Processed at"];
+      const salesCandidates = ["ventas_previas", "Sales", "Total", "Subtotal"];
+
+      const dateCol = dateCandidates.find((c) => meta.fields.includes(c));
+      const salesCol = salesCandidates.find((c) => meta.fields.includes(c));
+
+      // Caso 1: CSV ya procesado (tiene fecha y ventas_previas)
+      if (meta.fields.includes("fecha") && meta.fields.includes("ventas_previas")) {
+        historical = data.map((row) => ({
+          fecha: String(row.fecha),
+          ventas_previas: Number(row.ventas_previas) || 0,
+          // si no viene otras_vars, lo dejamos en 0
+          otras_vars: row.otras_vars ?? 0,
+        }));
+      }
+      // Caso 2: CSV crudo (Shopify / Superstore): usar columnas detectadas
+      else if (dateCol && salesCol) {
         const agg = data.reduce((acc, row) => {
-          const date = new Date(
-            row["Order Date"].replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$2-$1")
-          )
-            .toISOString()
-            .slice(0, 10);
-          const sale = parseFloat(row.Sales) || 0;
-          acc[date] = (acc[date] || 0) + sale;
+          const rawDate = row[dateCol];
+          if (!rawDate) return acc;
+
+          // parseo de fecha (funciona con "2023-01-01", "2023/01/01",
+          // "2023-01-01 10:00:00 -0500", etc.)
+          const iso = new Date(rawDate).toISOString().slice(0, 10);
+
+          // valor numérico de ventas (quita $, comas, etc.)
+          const rawSales = row[salesCol];
+          const sale = parseFloat(String(rawSales).replace(/[^0-9.\-]/g, "")) || 0;
+
+          acc[iso] = (acc[iso] || 0) + sale;
           return acc;
         }, {});
+
         historical = Object.entries(agg).map(([fecha, ventas_previas]) => ({
           fecha,
           ventas_previas,
           otras_vars: 0,
         }));
-      } else {
-        // 3) Validar que tenga exactamente las columnas requeridas
-        const missing = requiredCols.filter((c) => !meta.fields.includes(c));
-        if (missing.length) {
-          throw new Error(
-            `Faltan columnas: ${missing.join(
-              ", "
-            )}. El CSV debe contener: ${requiredCols.join(", ")}.`
-          );
-        }
-        // 4) Mapear directamente
-        historical = data.map((row) => ({
-          fecha: row.fecha,
-          ventas_previas: row.ventas_previas,
-          otras_vars: row.otras_vars,
-        }));
+      }
+      // Caso 3: nada calza → error explícito
+      else {
+        throw new Error(
+          `No se encontraron columnas de fecha/ventas reconocibles.\n` +
+            `Fecha esperada en alguna de: ${dateCandidates.join(", ")}\n` +
+            `Ventas esperadas en alguna de: ${salesCandidates.join(", ")}`
+        );
       }
 
       const horizon = selectedMonths * 30; // aprox. 30 días/mes
@@ -108,7 +122,6 @@ export default function UploadPage() {
       }
       const { predictions } = await res.json();
 
-      // 6) Guardar en sessionStorage y navegar a resultados
       sessionStorage.setItem("predictions", JSON.stringify(predictions));
       router.push("/results");
     } catch (err) {

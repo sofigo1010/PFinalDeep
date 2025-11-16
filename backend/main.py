@@ -1,6 +1,4 @@
-#!/usr/bin/env python3
 # backend/main.py
-
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -15,7 +13,7 @@ import joblib
 import torch
 import holidays
 
-# 1) Asegúrate de que backend/ esté en el PYTHONPATH
+
 BASE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(BASE_DIR))
 
