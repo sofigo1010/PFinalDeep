@@ -1,7 +1,7 @@
-"use client"
+"use client";
 
-import Header from "../../components/layout/header"
-import Footer from "../../components/layout/footer"
+import Header from "../../components/layout/header";
+import Footer from "../../components/layout/footer";
 import {
   BarChart,
   Bar,
@@ -11,19 +11,19 @@ import {
   Tooltip,
   Legend,
   ResponsiveContainer,
-} from "recharts"
-import { TrendingUp, CheckCircle, Info, Target } from "lucide-react"
+} from "recharts";
+import { TrendingUp, CheckCircle, Info, Target } from "lucide-react";
 
-// Datos de métricas
+// Métricas últimos 90 días (backtest in-sample)
 const metricsData = [
-  { metric: "MAE", Prophet: 899.18, Quantile: 0.13, Ensemble: 245.78 },
-  { metric: "RMSE", Prophet: 1198.29, Quantile: 0.24, Ensemble: 344.22 },
-  { metric: "MAPE", Prophet: 126.4, Quantile: 17.6, Ensemble: 48.52 },
-  { metric: "sMAPE", Prophet: 46.6, Quantile: 13.48, Ensemble: 20.43 },
-  { metric: "R²", Prophet: 0.15, Quantile: 0.342, Ensemble: 0.93 },
-]
+  { metric: "MAE",   Prophet: 671.91, Quantile: 591.24, Ensemble: 72.62 },
+  { metric: "RMSE",  Prophet: 953.65, Quantile: 1021.83, Ensemble: 98.84 },
+  { metric: "MAPE",  Prophet: 120.31, Quantile: 70.28,  Ensemble: 15.12 },
+  { metric: "sMAPE", Prophet: 62.50,  Quantile: 55.05,  Ensemble: 12.64 },
+  { metric: "R²",    Prophet: 0.263,  Quantile: 0.154,  Ensemble: 0.992 },
+];
 
-// Tarjeta de métrica
+// Tarjeta de métrica (usada para destacar el Ensemble)
 const MetricCard = ({ title, value, isGood = true }) => (
   <div className="bg-gray-900 border border-gray-800 rounded-xl p-6 text-center">
     <h3 className="text-lg font-bold text-gray-300 mb-2">{title}</h3>
@@ -32,13 +32,13 @@ const MetricCard = ({ title, value, isGood = true }) => (
       {isGood && <CheckCircle className="h-6 w-6 text-green-500" />}
     </div>
   </div>
-)
+);
 
 export default function MetricsPage() {
-  // Filtrar solo las métricas que queremos en cards
+  // Usamos solo las métricas clave para las cards, tomando SIEMPRE la del Ensemble
   const topMetrics = metricsData.filter(({ metric }) =>
     ["MAE", "RMSE", "MAPE", "R²"].includes(metric)
-  )
+  );
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -47,29 +47,30 @@ export default function MetricsPage() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-white mb-4">
-              Métricas de Evaluación
+              Métricas de Evaluación (últimos 90 días)
             </h1>
             <p className="text-xl text-gray-400">
-              Análisis comparativo del desempeño de los modelos
+              Comparación del desempeño de Prophet, LSTM cuantil y Ensemble
             </p>
           </div>
 
-          {/* Tarjetas de métricas destacadas (Quantile LSTM) */}
+          {/* Tarjetas de métricas destacadas (Ensemble) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-            {topMetrics.map(({ metric, Quantile }) => {
+            {topMetrics.map(({ metric, Ensemble }) => {
               const displayValue =
                 metric === "MAPE"
-                  ? `${Quantile.toFixed(2)}%`
+                  ? `${Ensemble.toFixed(2)}%`
                   : metric === "R²"
-                  ? Quantile.toFixed(3)
-                  : Quantile
+                  ? Ensemble.toFixed(3)
+                  : Ensemble.toFixed(2);
+
               return (
                 <MetricCard
                   key={metric}
-                  title={metric}
+                  title={`${metric} (Ensemble)`}
                   value={displayValue}
                 />
-              )
+              );
             })}
           </div>
 
@@ -78,7 +79,7 @@ export default function MetricsPage() {
             <div className="flex items-center gap-2 mb-6">
               <Target className="h-6 w-6 text-blue-500" />
               <h2 className="text-2xl font-bold text-white">
-                Comparación de Modelos
+                Comparación de Modelos (últimos 90 días)
               </h2>
             </div>
 
@@ -101,20 +102,32 @@ export default function MetricsPage() {
                       className="border-b border-gray-800 last:border-0"
                     >
                       <td className="py-3 text-white font-bold">{metric}</td>
+
+                      {/* Prophet */}
                       <td className="py-3 text-red-300 font-mono">
                         {["MAPE", "sMAPE"].includes(metric)
                           ? `${Prophet.toFixed(2)}%`
-                          : Prophet}
+                          : metric === "R²"
+                          ? Prophet.toFixed(3)
+                          : Prophet.toFixed(2)}
                       </td>
+
+                      {/* Quantile LSTM */}
                       <td className="py-3 text-yellow-300 font-mono">
                         {["MAPE", "sMAPE"].includes(metric)
                           ? `${Quantile.toFixed(2)}%`
-                          : Quantile}
+                          : metric === "R²"
+                          ? Quantile.toFixed(3)
+                          : Quantile.toFixed(2)}
                       </td>
+
+                      {/* Ensemble */}
                       <td className="py-3 text-green-300 font-mono">
                         {["MAPE", "sMAPE"].includes(metric)
                           ? `${Ensemble.toFixed(2)}%`
-                          : Ensemble}
+                          : metric === "R²"
+                          ? Ensemble.toFixed(3)
+                          : Ensemble.toFixed(2)}
                       </td>
                     </tr>
                   ))}
@@ -140,7 +153,8 @@ export default function MetricsPage() {
                   </h3>
                   <p className="text-gray-300">
                     Promedio de las diferencias absolutas entre predicciones y
-                    valores reales. Menor es mejor.
+                    valores reales. Valores más bajos indican un modelo más
+                    preciso.
                   </p>
                 </div>
 
@@ -149,8 +163,8 @@ export default function MetricsPage() {
                     RMSE (Raíz del Error Cuadrático Medio)
                   </h3>
                   <p className="text-gray-300">
-                    Penaliza más los errores grandes. Útil para detectar
-                    predicciones muy alejadas de la realidad.
+                    Penaliza más los errores grandes. Útil para detectar si el
+                    modelo se equivoca mucho en picos de demanda.
                   </p>
                 </div>
 
@@ -159,7 +173,8 @@ export default function MetricsPage() {
                     MAPE (Error Porcentual Absoluto Medio)
                   </h3>
                   <p className="text-gray-300">
-                    Error expresado como porcentaje. Fácil de interpretar.
+                    Error promedio expresado como porcentaje sobre las ventas
+                    reales. Fácil de interpretar para negocio.
                   </p>
                 </div>
               </div>
@@ -171,7 +186,7 @@ export default function MetricsPage() {
                   </h3>
                   <p className="text-gray-300">
                     Versión simétrica del MAPE que evita sesgos cuando los
-                    valores reales son muy pequeños.
+                    valores reales son muy pequeños o muy grandes.
                   </p>
                 </div>
 
@@ -180,20 +195,21 @@ export default function MetricsPage() {
                     R² (Coeficiente de Determinación)
                   </h3>
                   <p className="text-gray-300">
-                    Mide qué tan bien el modelo explica la variabilidad de los
-                    datos. 1.0 es perfecto, 0.0 es malo.
+                    Mide qué proporción de la variabilidad de las ventas queda
+                    explicada por el modelo. 1.0 es perfecto; valores cercanos
+                    a 0 indican poco poder explicativo.
                   </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Gráfico de barras */}
+          {/* Gráfico de barras comparativo */}
           <div className="bg-gray-900 rounded-xl p-8 border border-gray-800 mb-8">
             <div className="flex items-center gap-2 mb-6">
               <TrendingUp className="h-6 w-6 text-blue-500" />
               <h2 className="text-2xl font-bold text-white">
-                Comparación Visual
+                Comparación visual de modelos
               </h2>
             </div>
 
@@ -206,10 +222,7 @@ export default function MetricsPage() {
                     stroke="#9CA3AF"
                     tick={{ fill: "#9CA3AF" }}
                   />
-                  <YAxis
-                    stroke="#9CA3AF"
-                    tick={{ fill: "#9CA3AF" }}
-                  />
+                  <YAxis stroke="#9CA3AF" tick={{ fill: "#9CA3AF" }} />
                   <Tooltip
                     contentStyle={{
                       backgroundColor: "#1F2937",
@@ -227,18 +240,23 @@ export default function MetricsPage() {
             </div>
           </div>
 
-          {/* Interpretación */}
+          {/* Interpretación final */}
           <div className="bg-gradient-to-r from-green-900/20 to-blue-900/20 rounded-xl p-8 border border-green-500/30">
             <div className="text-center">
               <div className="text-4xl mb-4">🎯</div>
               <h2 className="text-2xl font-bold text-white mb-4">
-                Interpretación de Resultados
+                Interpretación de resultados
               </h2>
               <p className="text-xl text-green-300 font-bold mb-2">
-                El Ensemble reduce el MAE en ≈ 73 % respecto a Prophet y un 49 % respecto a Quantile LSTM.
+                El Ensemble reduce el MAE en ~89&nbsp;% frente a Prophet y ~88&nbsp;% frente al LSTM cuantil,
+                y también logra el menor MAPE (≈15&nbsp;%).
               </p>
               <p className="text-gray-300">
-                Con un R² de 0.93, el modelo Ensemble explica el 93 % de la variabilidad en tus datos de ventas.
+                Con un R² de {metricsData.find(m => m.metric === "R²")?.Ensemble.toFixed(3)}{" "}
+                el Ensemble explica prácticamente la totalidad de la variabilidad
+                de las ventas en esta ventana de 90 días, convirtiéndose en el
+                modelo más fiable para tomar decisiones de inventario y
+                planeación.
               </p>
             </div>
           </div>
@@ -246,5 +264,5 @@ export default function MetricsPage() {
       </main>
       <Footer />
     </div>
-  )
+  );
 }
