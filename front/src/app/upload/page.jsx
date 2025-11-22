@@ -2,7 +2,6 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import Papa from "papaparse";
 import Header from "../../components/layout/header";
 import Footer from "../../components/layout/footer";
 import { Upload, FileText, ChevronDown, Loader2 } from "lucide-react";
@@ -40,52 +39,48 @@ export default function UploadPage() {
     }
   };
 
-  const handleSubmit = async () => {
-    if (!file) return;
-    setIsLoading(true);
+const handleSubmit = async () => {
+  if (!file) return;
+  setIsLoading(true);
 
-    try {
-      // 1) Parsear CSV
-      const text = await file.text();
-      const { data, errors, meta } = Papa.parse(text, {
-        header: true,
-        dynamicTyping: true,
-        skipEmptyLines: true,
-      });
-      if (errors.length) {
-        console.error("Parse errors:", errors);
-        throw new Error("Error al parsear el CSV");
-      }
+  try {
+    const Papa = (await import("papaparse")).default;
 
-      let historical = [];
+    const text = await file.text();
+    const { data, errors, meta } = Papa.parse(text, {
+      header: true,
+      dynamicTyping: true,
+      skipEmptyLines: true,
+    });
+    if (errors.length) {
+      console.error("Parse errors:", errors);
+      throw new Error("Error al parsear el CSV");
+    }
 
-      // ---- Detectar columnas de fecha y ventas como en el backend ----
-      const dateCandidates = ["fecha", "Order Date", "Paid at", "Created at", "Processed at"];
-      const salesCandidates = ["ventas_previas", "Sales", "Total", "Subtotal"];
+    let historical = [];
 
-      const dateCol = dateCandidates.find((c) => meta.fields.includes(c));
-      const salesCol = salesCandidates.find((c) => meta.fields.includes(c));
+    const dateCandidates = ["fecha", "Order Date", "Paid at", "Created at", "Processed at"];
+    const salesCandidates = ["ventas_previas", "Sales", "Total", "Subtotal"];
 
-      // Caso 1: CSV ya procesado (tiene fecha y ventas_previas)
+    const dateCol = dateCandidates.find((c) => meta.fields.includes(c));
+    const salesCol = salesCandidates.find((c) => meta.fields.includes(c));
+
+
       if (meta.fields.includes("fecha") && meta.fields.includes("ventas_previas")) {
         historical = data.map((row) => ({
           fecha: String(row.fecha),
           ventas_previas: Number(row.ventas_previas) || 0,
-          // si no viene otras_vars, lo dejamos en 0
           otras_vars: row.otras_vars ?? 0,
         }));
       }
-      // Caso 2: CSV crudo (Shopify / Superstore): usar columnas detectadas
       else if (dateCol && salesCol) {
         const agg = data.reduce((acc, row) => {
           const rawDate = row[dateCol];
           if (!rawDate) return acc;
 
-          // parseo de fecha (funciona con "2023-01-01", "2023/01/01",
-          // "2023-01-01 10:00:00 -0500", etc.)
           const iso = new Date(rawDate).toISOString().slice(0, 10);
 
-          // valor numérico de ventas (quita $, comas, etc.)
+
           const rawSales = row[salesCol];
           const sale = parseFloat(String(rawSales).replace(/[^0-9.\-]/g, "")) || 0;
 
@@ -99,7 +94,7 @@ export default function UploadPage() {
           otras_vars: 0,
         }));
       }
-      // Caso 3: nada calza → error explícito
+
       else {
         throw new Error(
           `No se encontraron columnas de fecha/ventas reconocibles.\n` +
@@ -108,9 +103,8 @@ export default function UploadPage() {
         );
       }
 
-      const horizon = selectedMonths * 30; // aprox. 30 días/mes
+      const horizon = selectedMonths * 30; 
 
-      // 5) Llamada a la API
       const res = await fetch("http://127.0.0.1:8000/predict-horizon", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
